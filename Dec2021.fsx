@@ -1,0 +1,200 @@
+open System
+
+type Player = 
+    | Aaron
+    | Barron
+    | Caren
+    | Darrin
+
+type Game = 
+    {
+        Aaron: bool
+        Barron: bool
+        Caren: bool
+        Darrin: bool
+
+        LastPlayedIndex: int
+    }
+
+module Game = 
+    let create() = 
+        {
+            Aaron = true
+            Barron = true
+            Caren = true
+            Darrin = true
+
+            LastPlayedIndex = 0
+        }
+
+    let isOver game = 
+        let mutable remainingPlayers = 0
+        if game.Aaron then remainingPlayers <- remainingPlayers + 1
+        if game.Barron then remainingPlayers <- remainingPlayers + 1
+        if game.Caren then remainingPlayers <- remainingPlayers + 1
+        if game.Darrin then remainingPlayers <- remainingPlayers + 1
+        remainingPlayers = 1
+
+    let findWinner game = 
+        if game.Aaron then Player.Aaron
+        else if game.Barron then Player.Barron
+        else if game.Caren then Player.Caren
+        else if game.Darrin then Player.Darrin
+        else failwith "no winner found"
+
+type GameState = 
+    | Ongoing of Game
+    | WonBy of Player
+
+module GameState = 
+    let isOngoing  = 
+        function
+        | Ongoing _ -> true 
+        | _ -> false
+
+    let unpackGame =  
+        function
+        | Ongoing g -> g 
+        | _ -> failwith "tried to unpack finished game"
+    
+let rollDice() = 
+    let random = new System.Random()
+    random.Next(100)
+
+let isEliminated() = 
+    rollDice() < 50
+
+let fireArrow game = 
+    let isEliminated = isEliminated()
+
+    if not isEliminated 
+        then { game with LastPlayedIndex = (game.LastPlayedIndex + 1)%4}
+    else 
+        if game.LastPlayedIndex = 0
+            then { game with Barron = false }
+        else if game.LastPlayedIndex = 1
+            then { game with Caren = false }
+        else if game.LastPlayedIndex = 2
+            then { game with Darrin = false }
+        else if game.LastPlayedIndex = 3
+            then { game with Aaron = false }
+        else 
+            failwithf "Unrecognised LastPlayedIndex of %d" game.LastPlayedIndex
+
+let playRound game = 
+    let g = fireArrow game
+    if Game.isOver g 
+        then Game.findWinner g |> GameState.WonBy
+    else 
+        GameState.Ongoing g
+    
+
+let play() = 
+    let mutable game = Game.create() |> GameState.Ongoing
+
+    while GameState.isOngoing game 
+        do game <- game |> GameState.unpackGame |> playRound
+
+    match game with 
+    | Ongoing _ -> failwith "broke out of while loop, but game wasn't over"
+    | WonBy winner -> 
+        //printfn "The game was won by: %A" winner
+        winner
+
+
+module Results = 
+    type WinCounts = 
+        {
+            TotalGames: int
+            Aaron: int
+            Barron: int
+            Caren: int
+            Darrin: int
+        }
+
+    module WinCounts = 
+        let empty() = 
+            {
+                TotalGames = 0
+                Aaron = 0
+                Barron = 0
+                Caren = 0
+                Darrin = 0
+            }
+
+        let merge a b = 
+            {
+                TotalGames = a.TotalGames + b.TotalGames
+                Aaron = a.Aaron + b.Aaron
+                Barron = a.Barron + b.Barron
+                Caren = a.Caren + b.Caren
+                Darrin = a.Darrin + b.Darrin
+            }
+
+        let mergeArray counts = 
+            counts |> Array.reduce merge
+
+    let runOneSimulation winCounts = 
+        let winner = play()
+        match winner with 
+        | Player.Aaron -> 
+            { winCounts with
+                Aaron = winCounts.Aaron + 1
+                TotalGames = winCounts.TotalGames + 1    
+            }
+        | Player.Barron -> 
+            { winCounts with
+                Barron = winCounts.Barron + 1
+                TotalGames = winCounts.TotalGames + 1    
+            }
+        | Player.Caren -> 
+            { winCounts with
+                Caren = winCounts.Caren + 1
+                TotalGames = winCounts.TotalGames + 1    
+            }
+        | Player.Darrin -> 
+            { winCounts with
+                Darrin = winCounts.Darrin + 1
+                TotalGames = winCounts.TotalGames + 1    
+            }
+
+    //let runSimulation gameCount = 
+    //    let mutable counts = WinCounts.empty()
+    //    for i = 1 to gameCount do
+    //        counts <- runOneSimulation counts 
+    //    counts
+
+    
+
+    let runSimulation degreeOfParallelism gameCount = 
+        //let mutable counts = WinCounts.empty()
+
+        let runBatch batch = 
+            async {
+                let mutable counts = WinCounts.empty()
+                batch |> List.iter (fun _ -> counts <- runOneSimulation counts )
+                return counts
+            }
+
+        let allGames = [0..gameCount]
+        
+        let splitIntoChunks = allGames |> List.chunkBySize (gameCount/degreeOfParallelism)
+        let tasks = splitIntoChunks |> List.map (fun chunk -> runBatch chunk)
+
+
+        let allResults = tasks |> Async.Parallel |> Async.RunSynchronously 
+        // |> List.iter (fun _ -> counts <- runOneSimulation counts )
+        allResults |> WinCounts.mergeArray
+
+let stopWatch = System.Diagnostics.Stopwatch.StartNew()
+
+let gameCount = 1000000
+let degreeOfParallelism = 10
+let ret = Results.runSimulation degreeOfParallelism gameCount
+
+stopWatch.Stop()
+
+printfn "Ran %d simulations in %f, using %d threads" gameCount stopWatch.Elapsed.TotalMilliseconds degreeOfParallelism
+printfn "final results: %A" ret
+
+
