@@ -97,10 +97,7 @@ let play() =
 
     match game with 
     | Ongoing _ -> failwith "broke out of while loop, but game wasn't over"
-    | WonBy winner -> 
-        //printfn "The game was won by: %A" winner
-        winner
-
+    | WonBy winner -> winner
 
 module Results = 
     type WinCounts = 
@@ -156,26 +153,16 @@ module Results =
             { winCounts with
                 Darrin = winCounts.Darrin + 1
                 TotalGames = winCounts.TotalGames + 1    
-            }
+            }    
 
-    //let runSimulation gameCount = 
-    //    let mutable counts = WinCounts.empty()
-    //    for i = 1 to gameCount do
-    //        counts <- runOneSimulation counts 
-    //    counts
+    let runBatch batch = 
+        async {
+            let mutable counts = WinCounts.empty()
+            batch |> List.iter (fun _ -> counts <- runOneSimulation counts )
+            return counts
+        }
 
-    
-
-    let runSimulation degreeOfParallelism gameCount = 
-        //let mutable counts = WinCounts.empty()
-
-        let runBatch batch = 
-            async {
-                let mutable counts = WinCounts.empty()
-                batch |> List.iter (fun _ -> counts <- runOneSimulation counts )
-                return counts
-            }
-
+    let runSimulation degreeOfParallelism gameCount =      
         let allGames = [0..gameCount]
         
         let splitIntoChunks = allGames |> List.chunkBySize (gameCount/degreeOfParallelism)
@@ -183,12 +170,11 @@ module Results =
 
 
         let allResults = tasks |> Async.Parallel |> Async.RunSynchronously 
-        // |> List.iter (fun _ -> counts <- runOneSimulation counts )
         allResults |> WinCounts.mergeArray
 
 let stopWatch = System.Diagnostics.Stopwatch.StartNew()
 
-let gameCount = 1000000
+let gameCount = 10000000
 let degreeOfParallelism = 10
 let ret = Results.runSimulation degreeOfParallelism gameCount
 
