@@ -58,15 +58,14 @@ module GameState =
         | _ -> failwith "tried to unpack finished game"
 
 
-let rollDice() = 
-    let random = new System.Random()
-    random.Next(100)
+let rollDice (randomGenerator: Random) = 
+    randomGenerator.Next(100)
 
-let isEliminated() = 
-    rollDice() < 50
+let isEliminated randomGenerator = 
+    rollDice randomGenerator < 50
 
-let fireArrow game = 
-    let isEliminated = isEliminated()
+let fireArrow randomGenerator game = 
+    let isEliminated = isEliminated randomGenerator
 
     if not isEliminated 
         then { game with LastPlayedIndex = (game.LastPlayedIndex + 1)%4}
@@ -82,19 +81,19 @@ let fireArrow game =
         else 
             failwithf "Unrecognised LastPlayedIndex of %d" game.LastPlayedIndex
 
-let playRound game = 
-    let g = fireArrow game
+let playRound randomGenerator game = 
+    let g = fireArrow randomGenerator game
     if Game.isOver g 
         then Game.findWinner g |> GameState.WonBy
     else 
         GameState.Ongoing g
     
 
-let play() = 
+let play randomGenerator = 
     let mutable game = Game.create() |> GameState.Ongoing
 
     while GameState.isOngoing game 
-        do game <- game |> GameState.unpackGame |> playRound
+        do game <- game |> GameState.unpackGame |> playRound randomGenerator
 
     match game with 
     | Ongoing _ -> failwith "broke out of while loop, but game wasn't over"
@@ -132,8 +131,8 @@ module Results =
         let mergeArray counts = 
             counts |> Array.reduce merge
 
-    let runOneSimulation winCounts = 
-        let winner = play()
+    let runOneSimulation randomGenerator winCounts = 
+        let winner = play randomGenerator
         match winner with 
         | Player.Aaron -> 
             { winCounts with
@@ -159,7 +158,8 @@ module Results =
     let runBatch batch = 
         async {
             let mutable counts = WinCounts.empty()
-            batch |> List.iter (fun _ -> counts <- runOneSimulation counts )
+            let randomGenerator = new Random()
+            batch |> List.iter (fun _ -> counts <- runOneSimulation randomGenerator counts )
             return counts
         }
 
@@ -177,7 +177,7 @@ module Results =
 [<EntryPoint>]
 let main argv =
     let stopWatch = System.Diagnostics.Stopwatch.StartNew()
-    let gameCount = 100000
+    let gameCount = 10000000
     let degreeOfParallelism = 10
     let ret = Results.runSimulation degreeOfParallelism gameCount    
     stopWatch.Stop()
