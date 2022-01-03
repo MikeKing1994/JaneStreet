@@ -1,33 +1,42 @@
 open System
 
+[<Struct>]
 type Player = 
     | Aaron
     | Barron
     | Caren
     | Darrin
 
-type Game = 
-    {
-        Aaron: bool
-        Barron: bool
-        Caren: bool
-        Darrin: bool
+[<Struct>]
+type Game =
+    struct
+        val mutable Aaron: bool
+        val mutable Barron: bool
+        val mutable Caren: bool
+        val mutable Darrin: bool
 
-        LastPlayedIndex: int
-    }
+        val LastPlayedIndex: int
+
+        new(aaron: bool, barron: bool, caren: bool, darrin: bool, lastPlayedIndex: int) = 
+            { Aaron = aaron; Barron = barron; Caren = caren; Darrin = darrin; LastPlayedIndex = lastPlayedIndex}
+    end 
+    
+//[<Struct>]
+//type Game = 
+//    {
+//        Aaron: bool
+//        Barron: bool
+//        Caren: bool
+//        Darrin: bool
+//
+//        LastPlayedIndex: int
+//    }
 
 module Game = 
     let create() = 
-        {
-            Aaron = true
-            Barron = true
-            Caren = true
-            Darrin = true
+        new Game(true, true, true, true, 0)
 
-            LastPlayedIndex = 0
-        }
-
-    let isOver game = 
+    let isOver (game: Game) = 
         let mutable remainingPlayers = 0
         if game.Aaron then remainingPlayers <- remainingPlayers + 1
         if game.Barron then remainingPlayers <- remainingPlayers + 1
@@ -35,7 +44,7 @@ module Game =
         if game.Darrin then remainingPlayers <- remainingPlayers + 1
         remainingPlayers = 1
 
-    let findWinner game = 
+    let findWinner (game: Game) = 
         if game.Aaron then Player.Aaron
         else if game.Barron then Player.Barron
         else if game.Caren then Player.Caren
@@ -64,20 +73,24 @@ let rollDice (randomGenerator: Random) =
 let isEliminated randomGenerator = 
     rollDice randomGenerator < 50
 
-let fireArrow randomGenerator game = 
+let fireArrow randomGenerator (game: Game) = 
     let isEliminated = isEliminated randomGenerator
 
     if not isEliminated 
-        then { game with LastPlayedIndex = (game.LastPlayedIndex + 1)%4}
+        then new Game(game.Aaron, game.Barron, game.Caren, game.Darrin, (game.LastPlayedIndex + 1)%4)
+        //game.LastPlayedIndex <- (game.LastPlayedIndex + 1)%4
+        //{ game with LastPlayedIndex = (game.LastPlayedIndex + 1)%4}
     else 
         if game.LastPlayedIndex = 0
-            then { game with Barron = false }
+            then new Game(game.Aaron, false, game.Caren, game.Darrin, 1)
+            //{ game with game.Barron = false }
         else if game.LastPlayedIndex = 1
-            then { game with Caren = false }
+            then new Game(game.Aaron, game.Barron, false, game.Darrin, 2)
+            //{ game with Caren = false }
         else if game.LastPlayedIndex = 2
-            then { game with Darrin = false }
+            then new Game(game.Aaron, game.Barron, game.Caren, false, 3)
         else if game.LastPlayedIndex = 3
-            then { game with Aaron = false }
+            then new Game(false, game.Barron, game.Caren, game.Darrin, 0)
         else 
             failwithf "Unrecognised LastPlayedIndex of %d" game.LastPlayedIndex
 
