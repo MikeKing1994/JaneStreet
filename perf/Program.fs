@@ -21,17 +21,6 @@ type Game =
             { Aaron = aaron; Barron = barron; Caren = caren; Darrin = darrin; LastPlayedIndex = lastPlayedIndex}
     end 
     
-//[<Struct>]
-//type Game = 
-//    {
-//        Aaron: bool
-//        Barron: bool
-//        Caren: bool
-//        Darrin: bool
-//
-//        LastPlayedIndex: int
-//    }
-
 module Game = 
     let create() = 
         new Game(true, true, true, true, 0)
@@ -51,21 +40,17 @@ module Game =
         else if game.Darrin then Player.Darrin
         else failwith "no winner found"
 
-type GameState = 
-    | Ongoing of Game
-    | WonBy of Player
 
-module GameState = 
-    let isOngoing  = 
-        function
-        | Ongoing _ -> true 
-        | _ -> false
+[<Struct>]
+type GameState =
+    struct
+        val mutable IsOngoing: bool
+        val mutable OngoingGame: Game
+        val mutable WonBy: Nullable<Player>
 
-    let unpackGame =  
-        function
-        | Ongoing g -> g 
-        | _ -> failwith "tried to unpack finished game"
-
+        new(isOngoing: bool, game: Game, wonBy: Nullable<Player>) = 
+            { IsOngoing = isOngoing; OngoingGame = game; WonBy = wonBy}
+    end 
 
 let rollDice (randomGenerator: Random) = 
     randomGenerator.Next(100)
@@ -78,15 +63,11 @@ let fireArrow randomGenerator (game: Game) =
 
     if not isEliminated 
         then new Game(game.Aaron, game.Barron, game.Caren, game.Darrin, (game.LastPlayedIndex + 1)%4)
-        //game.LastPlayedIndex <- (game.LastPlayedIndex + 1)%4
-        //{ game with LastPlayedIndex = (game.LastPlayedIndex + 1)%4}
     else 
         if game.LastPlayedIndex = 0
             then new Game(game.Aaron, false, game.Caren, game.Darrin, 1)
-            //{ game with game.Barron = false }
         else if game.LastPlayedIndex = 1
             then new Game(game.Aaron, game.Barron, false, game.Darrin, 2)
-            //{ game with Caren = false }
         else if game.LastPlayedIndex = 2
             then new Game(game.Aaron, game.Barron, game.Caren, false, 3)
         else if game.LastPlayedIndex = 3
@@ -97,22 +78,23 @@ let fireArrow randomGenerator (game: Game) =
 let playRound randomGenerator game = 
     let g = fireArrow randomGenerator game
     if Game.isOver g 
-        then Game.findWinner g |> GameState.WonBy
+        then new GameState(false, g, Game.findWinner g)
     else 
-        GameState.Ongoing g
+        new GameState(true, g, Nullable())
     
 
 let play randomGenerator = 
-    let mutable game = Game.create() |> GameState.Ongoing
+    let mutable game = new GameState(true, Game.create(), Nullable())
 
-    while GameState.isOngoing game 
-        do game <- game |> GameState.unpackGame |> playRound randomGenerator
+    while game.IsOngoing
+        do game <- game.OngoingGame |> playRound randomGenerator
 
-    match game with 
-    | Ongoing _ -> failwith "broke out of while loop, but game wasn't over"
-    | WonBy winner -> winner
+    match game.IsOngoing with 
+    | true -> failwith "broke out of while loop, but game wasn't over"
+    | false -> game.WonBy.Value
 
 module Results = 
+    [<Struct>]
     type WinCounts = 
         {
             TotalGames: int
@@ -197,8 +179,9 @@ let main argv =
     printfn "Ran %d simulations in %f ms, using %d threads" gameCount stopWatch.Elapsed.TotalMilliseconds degreeOfParallelism
     printfn "%A" ret
 
+    //let random = Random()
     //let mutable counts = Results.WinCounts.empty()
     //while true do 
-    //    counts <- Results.runOneSimulation counts
+    //    counts <- Results.runOneSimulation random counts
     //printfn "%A" counts
     0
