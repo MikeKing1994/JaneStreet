@@ -159,15 +159,15 @@ module Results =
         async {
             let mutable counts = WinCounts.empty()
             let randomGenerator = new Random()
-            batch |> List.iter (fun _ -> counts <- runOneSimulation randomGenerator counts )
+            batch |> Array.iter (fun _ -> counts <- runOneSimulation randomGenerator counts )
             return counts
         }
 
     let runSimulation degreeOfParallelism gameCount =      
-        let allGames = [0..gameCount-1]
+        let allGames = [|0..gameCount-1|]
         
-        let splitIntoChunks = allGames |> List.chunkBySize (gameCount/degreeOfParallelism)
-        let tasks = splitIntoChunks |> List.map (fun chunk -> runBatch chunk)
+        let splitIntoChunks = allGames |> Array.chunkBySize (gameCount/degreeOfParallelism)
+        let tasks = splitIntoChunks |> Array.map (fun chunk -> runBatch chunk)
 
 
         let allResults = tasks |> Async.Parallel |> Async.RunSynchronously 
